@@ -4,6 +4,14 @@ open System
 open System.IO
 open System.Collections.Generic
 
+let isEdu =
+    let args = System.Environment.GetEnvironmentVariable("edu_args")
+    printfn "Args = %A" args
+    args |> String.IsNullOrEmpty |> not
+    && (args.Split ' ') |> Array.exists (fun s -> s.ToLowerInvariant() = "edu")
+
+printfn "isEDU = %A" isEdu
+
 // --------------------------------
 // init.fsx
 // This file is run the first time that you run build.sh/build.cmd
@@ -36,19 +44,25 @@ let prompt (msg:string) =
   Console.ReadLine().Trim()
   |> function | "" -> None | s -> Some s
   |> Option.map (fun s -> s.Replace ("\"","\\\""))
+
 let runningOnAppveyor =
   not <| String.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI"))
+
 let runningOnTravis =
   not <| String.IsNullOrEmpty(Environment.GetEnvironmentVariable("TRAVIS"))
+
 let inCI = runningOnAppveyor || runningOnTravis
+
 let promptFor friendlyName =
   if inCI then Some "CONTINUOUSINTEGRATION"
   else prompt (sprintf "%s: " friendlyName)
+
 let rec promptForNoSpaces friendlyName =
   match promptFor friendlyName with
   | None -> None
   | Some s when not <| String.exists (fun c -> c = ' ') s -> Some s
   | _ -> Console.WriteLine("Sorry, spaces are disallowed"); promptForNoSpaces friendlyName
+
 let rec promptYesNo msg =
   match prompt (sprintf "%s [Yn]: " msg) with
   | None
@@ -92,12 +106,12 @@ vars.["##Tags##"]        <- promptFor "Tags (separated by spaces)"
 vars.["##GitHome##"]     <- promptFor "Github User or Organization"
 vars.["##GitName##"]     <- promptFor "Github Project Name (leave blank to use Project Name)"
 
-let wantGit     = if inCI 
-                    then false
-                    else promptYesNo "Initialize git repo"
+let wantGit     = if inCI || isEdu
+                  then false
+                  else promptYesNo "Initialize git repo"
 let givenOrigin = if wantGit
-                    then promptForNoSpaces "Origin (url of git remote; blank to skip)"
-                    else None
+                  then promptForNoSpaces "Origin (url of git remote; blank to skip)"
+                  else None
 
 //Basic settings
 let solutionTemplateName = "FSharp.ProjectScaffold"
@@ -233,7 +247,7 @@ if isGitRepo () && hasScaffoldOrigin () then
 
 if wantGit then
   Git.Repository.init __SOURCE_DIRECTORY__ false false
-  givenOrigin |> Option.iter (fun url -> setRemote ("origin",url) __SOURCE_DIRECTORY__)
+  givenOrigin |> Option.iter (fun url -> setRemote ("origin",url) __SOURCE_DIRECTORY__) 
 
 //Clean up
 File.Delete "init.fsx"
